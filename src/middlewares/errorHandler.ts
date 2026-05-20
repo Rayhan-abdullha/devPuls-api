@@ -1,9 +1,14 @@
 import { Request, Response, NextFunction } from "express";
-import { ZodError } from "zod";
 import { config } from "../config";
+import { sendResponse, ApiResponse } from "../utils/sendResponse";
 
 interface AppError extends Error {
   statusCode?: number;
+  code?: string;
+  detail?: string;
+  constraint?: string;
+  table?: string;
+  column?: string;
 }
 
 export const errorHandler = (
@@ -17,52 +22,122 @@ export const errorHandler = (
   let errors: any = null;
 
   /**
-   * ✅ ZOD VALIDATION ERROR
+   * JWT Errors
    */
-  if (err instanceof ZodError) {
-    statusCode = 400;
-    message = "Validation Error";
-
-    errors = err.issues.map((issue) => ({
-      field: issue.path.join("."),
-      message: issue.message,
-    }));
-  } else if (err.name === "JsonWebTokenError") {
-    /**
-     * 🔐 JWT ERRORS
-     */
+  if (err.name === "JsonWebTokenError") {
     statusCode = 401;
     message = "Invalid token";
   } else if (err.name === "TokenExpiredError") {
     statusCode = 401;
     message = "Token expired";
+  }
+
+  /**
+   * PostgreSQL Errors
+   */
+
+  // UNIQUE constraint violation
+  else if (err.code === "23505") {
+    statusCode = 409;
+
+    const match = err.detail?.match(/\((.*?)\)=\((.*?)\)/);
+
+    errors = {
+      field: match?.[1],
+      value: match?.[2],
+    };
+
+    message = `${match?.[1] || "Field"} already exists`;
+  }
+
+  // FOREIGN KEY violation
+  else if (err.code === "23503") {
+    statusCode = 400;
+
+    message = "Referenced resource does not exist";
+
+    errors = {
+      constraint: err.constraint,
+    };
+  }
+
+  // NOT NULL violation
+  else if (err.code === "23502") {
+    statusCode = 400;
+
+    message = `${err.column || "Field"} is required`;
+
+    errors = {
+      field: err.column,
+    };
+  }
+
+  // CHECK constraint violation
+  else if (err.code === "23514") {
+    statusCode = 400;
+
+    message = "Validation failed";
+
+    errors = {
+      constraint: err.constraint,
+    };
+  }
+
+  // Invalid UUID / invalid input syntax
+  else if (err.code === "22P02") {
+    statusCode = 400;
+    message = "Invalid input format";
+  }
+
+  // Table does not exist
+  else if (err.code === "42P01") {
+    statusCode = 500;
+    message = "Database table error";
+  }
+
+  // Column does not exist
+  else if (err.code === "42703") {
+    statusCode = 500;
+    message = "Database column error";
+  }
+
+  // DB connection issue
+  else if (err.code === "ECONNREFUSED") {
+    statusCode = 503;
+    message = "Database connection failed";
   } else if (err.statusCode) {
-    /**
-     * ⚙️ CUSTOM APPLICATION ERROR
-     */
+
+  /**
+   * Custom App Error
+   */
     statusCode = err.statusCode;
     message = err.message;
-  }
+  } else {
 
   /**
-   * 📦 FINAL RESPONSE (MATCH sendResponse STYLE)
+   * Unknown Error
    */
-  const response: any = {
-    success: false,
-    message,
-  };
-
-  if (errors) {
-    response.errors = errors;
+    message = err.message || message;
   }
 
   /**
-   * 🧠 DEV MODE DEBUGGING ONLY
+   * Development Errors
    */
   if (config.node_env === "development") {
-    response.stack = err.stack;
-    response.errorName = err.name;
+    errors = {
+      ...errors,
+      stack: err.stack,
+      errorName: err.name,
+      code: err.code,
+      detail: err.detail,
+    };
   }
 
-  return res.status(statusCode).json(response);
+  const response: ApiResponse<null> = {
+    success: false,
+    message,
+    errors,
+  };
+
+  return sendResponse(res, response, statusCode);
 };
