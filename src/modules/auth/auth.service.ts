@@ -26,10 +26,14 @@ export const createUser = async (
 export const loginUser = async (email: string, password: string) => {
   const user = await pool.query(`SELECT * FROM users WHERE email=$1`, [email]);
 
-  if (!user.rows[0]) return null;
+  if (!user.rows[0]) {
+    throw new Error("Invalid email or password");
+  }
 
   const valid = await comparePassword(password, user.rows[0].password);
-  if (!valid) return null;
+  if (!valid) {
+    throw new Error("Invalid email or password");
+  }
 
   return user.rows[0];
 };
