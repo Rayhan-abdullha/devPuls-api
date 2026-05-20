@@ -11,7 +11,10 @@ app.use(cors());
 app.use(express.json());
 
 app.get("/", (req, res) => {
-  res.send("Welcome to the Issue Tracker API");
+  res.status(200).json({
+    success: true,
+    message: "Welcome to the Issue Tracker API",
+  });
 });
 
 app.use("/api/auth", authRoutes);
