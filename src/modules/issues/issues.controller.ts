@@ -1,8 +1,16 @@
 import { sendResponse } from "./../../utils/sendResponse";
 import { AuthRequest } from "../../middlewares/authenticate";
 import { NextFunction, Response } from "express";
-import { createIssue, getIssues } from "./issues.service";
-import pool from "../../db";
+import {
+  createIssue,
+  getIssues,
+  updateIssue,
+  getIssueById,
+  deleteIssue,
+  getUsersByIds,
+} from "./issues.service";
+import { User } from "../../types";
+
 export const createIssueController = async (
   req: AuthRequest,
   res: Response,
@@ -84,19 +92,124 @@ export const getAllIssuesController = async (
     next(err);
   }
 };
-export const getUsersByIds = async (ids: number[]) => {
-  if (!ids.length) return [];
+export const getSingleIssueController = async (
+  req: any,
+  res: Response,
+  next: NextFunction,
+) => {
+  const id = Number(req.params.id);
+  if (!id) {
+    return sendResponse(res, {
+      success: false,
+      message: "Valid issue ID is required",
+    });
+  }
 
-  const placeholders = ids.map((_, i) => `$${i + 1}`).join(", ");
+  try {
+    const issue = await getIssueById(id);
 
-  const result = await pool.query(
-    `
-    SELECT id, name, role
-    FROM users
-    WHERE id IN (${placeholders})
-    `,
-    ids,
-  );
+    if (!issue) {
+      return sendResponse(res, {
+        success: false,
+        message: "Issue not found",
+      });
+    }
 
-  return result.rows;
+    const user = await getUsersByIds([issue.reporter_id]);
+
+    const reporter = user[0]
+      ? {
+          id: user[0].id,
+          name: user[0].name,
+          role: user[0].role,
+        }
+      : null;
+
+    return sendResponse(
+      res,
+      {
+        success: true,
+        message: "Issue retrieved successfully",
+        data: {
+          ...issue,
+          reporter,
+        },
+      },
+      200,
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+export const updateIssueController = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const issueId = Number(req.params.id);
+    const user = req.user as User;
+
+    const existing = await getIssueById(issueId);
+
+    if (!existing) {
+      return sendResponse(res, {
+        success: false,
+        message: "Issue not found",
+      });
+    }
+
+    if (user.role === "contributor") {
+      if (existing.reporter_id !== user.id) {
+        return sendResponse(res, {
+          success: false,
+          message: "You can only update your own issues",
+        });
+      }
+
+      if (existing.status !== "open") {
+        return sendResponse(res, {
+          success: false,
+          message: "Cannot update issue after it is in progress or resolved",
+        });
+      }
+    }
+
+    const updated = await updateIssue(issueId, req.body);
+
+    return sendResponse(res, {
+      success: true,
+      message: "Issue updated successfully",
+      data: updated,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+export const deleteIssueController = async (
+  req: any,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const id = Number(req.params.id);
+
+    const existing = await getIssueById(id);
+
+    if (!existing) {
+      return sendResponse(res, {
+        success: false,
+        message: "Issue not found",
+      });
+    }
+
+    await deleteIssue(id);
+
+    return sendResponse(res, {
+      success: true,
+      message: "Issue deleted successfully",
+    });
+  } catch (err) {
+    next(err);
+  }
 };
