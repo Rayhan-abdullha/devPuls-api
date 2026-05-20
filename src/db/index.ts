@@ -30,6 +30,7 @@ export const initDb = async () => {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+    console.log("Database tables ensured");
   } catch (error) {
     console.error("Error initializing database:", error);
     throw error;

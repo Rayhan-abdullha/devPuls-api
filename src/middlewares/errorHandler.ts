@@ -28,20 +28,18 @@ export const errorHandler = (
       message: issue.message,
     }));
   } else if (err.name === "JsonWebTokenError") {
-
-  /**
-   * 🔐 JWT ERRORS
-   */
+    /**
+     * 🔐 JWT ERRORS
+     */
     statusCode = 401;
     message = "Invalid token";
   } else if (err.name === "TokenExpiredError") {
     statusCode = 401;
     message = "Token expired";
   } else if (err.statusCode) {
-
-  /**
-   * ⚙️ CUSTOM APPLICATION ERROR
-   */
+    /**
+     * ⚙️ CUSTOM APPLICATION ERROR
+     */
     statusCode = err.statusCode;
     message = err.message;
   }

@@ -2,11 +2,10 @@ import { Response, NextFunction } from "express";
 import { AuthRequest } from "./authenticate";
 import { sendResponse } from "../utils/sendResponse";
 
-export const authorization = (roles: string[]) => {
+export const authorization = (roles: ("contributor" | "maintainer")[]) => {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const user = req.user;
-
       if (!user) {
         return sendResponse(
           res,

@@ -7,7 +7,7 @@ export interface AuthRequest<T = User> extends Request {
   user?: T;
 }
 
-export const authMiddleware = (
+export const authenticate = (
   req: AuthRequest,
   res: Response,
   next: NextFunction,
