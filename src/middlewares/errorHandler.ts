@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { config } from "../config";
 import { sendResponse, ApiResponse } from "../utils/sendResponse";
+import { sanitizeError } from "../utils/sanitizeError";
 
 interface AppError extends Error {
   statusCode?: number;
@@ -21,9 +22,6 @@ export const errorHandler = (
   let message = "Internal Server Error";
   let errors: any = null;
 
-  /**
-   * JWT Errors
-   */
   if (err.name === "JsonWebTokenError") {
     statusCode = 401;
     message = "Invalid token";
@@ -31,10 +29,6 @@ export const errorHandler = (
     statusCode = 401;
     message = "Token expired";
   }
-
-  /**
-   * PostgreSQL Errors
-   */
 
   // UNIQUE constraint violation
   else if (err.code === "23505") {
@@ -48,17 +42,6 @@ export const errorHandler = (
     };
 
     message = `${match?.[1] || "Field"} already exists`;
-  }
-
-  // FOREIGN KEY violation
-  else if (err.code === "23503") {
-    statusCode = 400;
-
-    message = "Referenced resource does not exist";
-
-    errors = {
-      constraint: err.constraint,
-    };
   }
 
   // NOT NULL violation
@@ -106,38 +89,16 @@ export const errorHandler = (
     statusCode = 503;
     message = "Database connection failed";
   } else if (err.statusCode) {
-
-  /**
-   * Custom App Error
-   */
     statusCode = err.statusCode;
     message = err.message;
   } else {
-
-  /**
-   * Unknown Error
-   */
     message = err.message || message;
-  }
-
-  /**
-   * Development Errors
-   */
-  if (config.node_env === "development") {
-    errors = {
-      ...errors,
-      stack: err.stack,
-      errorName: err.name,
-      code: err.code,
-      detail: err.detail,
-    };
   }
 
   const response: ApiResponse<null> = {
     success: false,
     message,
-    errors,
+    errors: sanitizeError(err),
   };
-
   return sendResponse(res, response, statusCode);
 };
