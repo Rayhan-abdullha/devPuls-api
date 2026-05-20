@@ -3,8 +3,8 @@ import { verifyToken } from "../utils/jwt";
 import { User } from "../types";
 import { sendResponse } from "../utils/sendResponse";
 
-export interface AuthRequest<T = User> extends Request {
-  user?: T;
+export interface AuthRequest extends Request {
+  user?: User;
 }
 
 export const authenticate = (
